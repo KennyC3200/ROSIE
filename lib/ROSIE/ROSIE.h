@@ -4,23 +4,9 @@
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
-
 #include "Utilities.h"
 #include "MotorManager.h"
-
-class ROSIEServerCallbacks : public BLEServerCallbacks
-{
-    void onConnect(BLEServer* server) override
-    {
-        Serial.println("CLIENT CONNECTED");
-    }
-
-    void onDisconnect(BLEServer* server) override
-    {
-        Serial.println("CLIENT DISCONNECTED");
-        BLEDevice::startAdvertising();
-    }
-};
+#include "BLEProfile.h"
 
 struct Characteristic
 {
@@ -51,6 +37,7 @@ private:
     int lever_state;
 
     // Motor and battery
+    const int INIT_MOTOR_SPEED_PERCENT = 25;
     const float MAX_VOLTAGE = 24.0f;
     const float BATTERY_VOLTAGE = 22.2f;
     const uint MAX_RPM = 20000;
@@ -70,16 +57,14 @@ private:
     bool first_time_on = true;
 
     // BLE
-    BLEServer* server;
-    BLEService* service;
-    bool service_ready = false;
-    const char* SERVICE_UUID = "c82088ae-79eb-4e15-9e11-87dd59d897d5";
-
+    BLEProfile* BLE_profile = nullptr;
+    const std::string APP_UUID = "c82088ae-79eb-4e15-9e11-87dd59d897d5";
+    const std::string MOTOR_SPEED_PERCENT_UUID = "7e77c276-cd8d-4b29-bfcf-ea1bb488a49b";
+    const std::string MOTOR_1_RPM_UUID = "76bd9c05-8508-4ade-91ea-cab8a83a5cac";
+    const std::string MOTOR_2_RPM_UUID = "d7bc8ea0-ceed-4534-a6e1-88061f51ae37";
+    const std::string BALL_SPIN_UUID = "775c47cf-69c4-4ec7-bde0-0e49e75fdebe";
     uint motor_speed_percent;
     uint motor_1_RPM, motor_2_RPM;
-    Characteristic motor_speed_percent_char;
-    Characteristic motor_1_RPM_char, motor_2_RPM_char;
-    Characteristic ball_spin_char;
 };
 
 #endif

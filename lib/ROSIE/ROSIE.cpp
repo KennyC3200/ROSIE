@@ -1,8 +1,15 @@
 #include "ROSIE.h"
+#include "ROSIEBLEServerCallbacks.h"
 #include <Arduino.h>
+
+#define __DEBUG__
 
 ROSIE::ROSIE()
 {
+#ifdef __DEBUG__
+    Serial.begin(115200);
+#endif
+
     motor_manager = new MotorManager((MotorManagerParams){.cnt = 2, .speed_ROC_delay = 40});
 
     // Pull up resistor for the lever
@@ -14,57 +21,45 @@ ROSIE::ROSIE()
     motor_manager->AppendMotor((MotorParams){.PWM_CHANNEL = 1, .PWM = 14, .L_EN = 27, .R_EN = 26});
 
     // Set the initial speed for the two motors
-    #define INIT_MOTOR_SPEED_PERCENT 25
     std::pair<uint8, uint8> motor_speeds = GetMotorSpeedsByPercent(INIT_MOTOR_SPEED_PERCENT);
     motor_manager->SetMaxSpeed(0, motor_speeds.first);
     motor_manager->SetMaxSpeed(1, motor_speeds.second);
-
-    // Init BLE
-    BLEDevice::init("R.O.S.I.E MK1");
-    server = BLEDevice::createServer();
-    server->setCallbacks(new ROSIEServerCallbacks());
-    service = server->createService(SERVICE_UUID);
-
-    motor_speed_percent_char.characteristic = service->createCharacteristic(
-        motor_speed_percent_char.UUID = "7e77c276-cd8d-4b29-bfcf-ea1bb488a49b",
-        BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE_NR | BLECharacteristic::PROPERTY_NOTIFY);
-
-    motor_1_RPM_char.characteristic = service->createCharacteristic(
-        motor_1_RPM_char.UUID = "76bd9c05-8508-4ade-91ea-cab8a83a5cac",
-        BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
-
-    motor_2_RPM_char.characteristic = service->createCharacteristic(
-        motor_2_RPM_char.UUID = "d7bc8ea0-ceed-4534-a6e1-88061f51ae37",
-        BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
-
-    ball_spin_char.characteristic = service->createCharacteristic(
-        ball_spin_char.UUID = "775c47cf-69c4-4ec7-bde0-0e49e75fdebe",
-        BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE_NR | BLECharacteristic::PROPERTY_NOTIFY);
-
-    service->start();
-
-    BLEAdvertising* advertising = BLEDevice::getAdvertising();
-    advertising->addServiceUUID(SERVICE_UUID);
-    advertising->setScanResponse(true);
-    advertising->setMinPreferred(0x12); // Functions that help with iPhone connections issue
-    BLEDevice::startAdvertising();
-
-    service_ready = true;
 
     // Update member values for characteristics
     motor_speed_percent = INIT_MOTOR_SPEED_PERCENT;
     motor_1_RPM = MotorSpeedToRPM(motor_speeds.first);
     motor_2_RPM = MotorSpeedToRPM(motor_speeds.second);
 
-    // Update the characteristic values to match member values
-    motor_speed_percent_char.characteristic->setValue(std::to_string(motor_speed_percent));
-    motor_1_RPM_char.characteristic->setValue(std::to_string(motor_1_RPM));
-    motor_2_RPM_char.characteristic->setValue(std::to_string(motor_2_RPM));
-    ball_spin_char.characteristic->setValue(ball_spin ? "1" : "0");
+    // BLE
+    BLE_profile = new BLEProfile("R.O.S.I.E MK1");
+    BLE_profile->SetCallback(new ROSIEServerCallbacks());
+    BLE_profile->CreateService("app", APP_UUID);
+    BLE_profile->AppendCharacteristic(
+        "app", "motor_speed_percent", MOTOR_SPEED_PERCENT_UUID, 
+        BLECharacteristic::PROPERTY_READ | 
+        BLECharacteristic::PROPERTY_WRITE_NR | 
+        BLECharacteristic::PROPERTY_NOTIFY);
+    BLE_profile->AppendCharacteristic(
+        "app", "motor_1_RPM", MOTOR_1_RPM_UUID, 
+        BLECharacteristic::PROPERTY_READ | 
+        BLECharacteristic::PROPERTY_NOTIFY);
+    BLE_profile->AppendCharacteristic(
+        "app", "motor_2_RPM", MOTOR_2_RPM_UUID, 
+        BLECharacteristic::PROPERTY_READ | 
+        BLECharacteristic::PROPERTY_NOTIFY);
+    BLE_profile->AppendCharacteristic(
+        "app", "ball_spin", BALL_SPIN_UUID, 
+        BLECharacteristic::PROPERTY_READ | 
+        BLECharacteristic::PROPERTY_WRITE_NR | 
+        BLECharacteristic::PROPERTY_NOTIFY);
+    BLE_profile->StartService("app");
+    BLE_profile->AdvertiseService("app");
+    BLE_profile->StartAdvertising();
 
-#ifdef __DEBUG__
-    Serial.begin(115200);
-#endif
+    BLE_profile->SetCharacteristicVal("app", "motor_speed_percent", std::to_string(motor_speed_percent));
+    BLE_profile->SetCharacteristicVal("app", "motor_1_RPM", std::to_string(motor_1_RPM));
+    BLE_profile->SetCharacteristicVal("app", "motor_2_RPM", std::to_string(motor_2_RPM));
+    BLE_profile->SetCharacteristicVal("app", "ball_spin", ball_spin ? "1" : "0");
 }
 
 ROSIE::~ROSIE()
@@ -84,8 +79,10 @@ void ROSIE::Loop()
         first_time_on = false;
 
     // Update member variables with characteristic values
-    ball_spin = ball_spin_char.characteristic->getValue() == "1" ? true : false;
-    motor_speed_percent = std::stoi(motor_speed_percent_char.characteristic->getValue());
+    // motor_speed_percent = 10;
+    // ball_spin = true;
+    motor_speed_percent = std::stoi(BLE_profile->GetCharacteristicVal("app", "motor_speed_percent"));
+    ball_spin = BLE_profile->GetCharacteristicVal("app", "ball_spin") == "1" ? true : false;
     std::pair<uint8, uint8> motor_speeds = GetMotorSpeedsByPercent(motor_speed_percent);
     motor_1_RPM = MotorSpeedToRPM(motor_speeds.first);
     motor_2_RPM = MotorSpeedToRPM(motor_speeds.second);
@@ -105,17 +102,18 @@ void ROSIE::Loop()
     // Update the speeds of the motors
     motor_manager->Update();
 
+    // BLE
     // Set characteristic values to be updated member values
-    motor_1_RPM_char.characteristic->setValue(std::to_string(motor_1_RPM));
-    motor_2_RPM_char.characteristic->setValue(std::to_string(motor_2_RPM));
+    BLE_profile->SetCharacteristicVal("app", "motor_1_RPM", std::to_string(motor_1_RPM));
+    BLE_profile->SetCharacteristicVal("app", "motor_2_RPM", std::to_string(motor_2_RPM));
 
-    // Notify any changes
-    if (service_ready)
+    // // Notify any changes
+    if (BLE_profile->GetServiceState("app"))
     {
-        motor_speed_percent_char.characteristic->notify();
-        motor_1_RPM_char.characteristic->notify();
-        motor_2_RPM_char.characteristic->notify();
-        ball_spin_char.characteristic->notify();
+        BLE_profile->NotifyCharacteristic("app", "motor_speed_percent");
+        BLE_profile->NotifyCharacteristic("app", "motor_1_RPM");
+        BLE_profile->NotifyCharacteristic("app", "motor_2_RPM");
+        BLE_profile->NotifyCharacteristic("app", "ball_spin");
     }
 }
 
