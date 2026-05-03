@@ -2,8 +2,6 @@
 #include "ROSIEBLEServerCallbacks.h"
 #include <Arduino.h>
 
-#define __DEBUG__
-
 ROSIE::ROSIE()
 {
 #ifdef __DEBUG__
@@ -30,10 +28,14 @@ ROSIE::ROSIE()
     motor_1_RPM = MotorSpeedToRPM(motor_speeds.first);
     motor_2_RPM = MotorSpeedToRPM(motor_speeds.second);
 
-    // BLE
+    // Create new BLE server
     BLE_profile = new BLEProfile("R.O.S.I.E MK1");
     BLE_profile->SetCallback(new ROSIEServerCallbacks());
+
+    // Create BLE service for the app
     BLE_profile->CreateService("app", APP_UUID);
+
+    // Add characteristics to the app's BLE service
     BLE_profile->AppendCharacteristic(
         "app", "motor_speed_percent", MOTOR_SPEED_PERCENT_UUID, 
         BLECharacteristic::PROPERTY_READ | 
@@ -52,19 +54,17 @@ ROSIE::ROSIE()
         BLECharacteristic::PROPERTY_READ | 
         BLECharacteristic::PROPERTY_WRITE_NR | 
         BLECharacteristic::PROPERTY_NOTIFY);
+
+    // Start the app service and begin advertising the service
     BLE_profile->StartService("app");
     BLE_profile->AdvertiseService("app");
     BLE_profile->StartAdvertising();
 
+    // Set the characteristic values
     BLE_profile->SetCharacteristicVal("app", "motor_speed_percent", std::to_string(motor_speed_percent));
     BLE_profile->SetCharacteristicVal("app", "motor_1_RPM", std::to_string(motor_1_RPM));
     BLE_profile->SetCharacteristicVal("app", "motor_2_RPM", std::to_string(motor_2_RPM));
     BLE_profile->SetCharacteristicVal("app", "ball_spin", ball_spin ? "1" : "0");
-}
-
-ROSIE::~ROSIE()
-{
-    delete motor_manager;
 }
 
 void ROSIE::Loop()
@@ -79,8 +79,6 @@ void ROSIE::Loop()
         first_time_on = false;
 
     // Update member variables with characteristic values
-    // motor_speed_percent = 10;
-    // ball_spin = true;
     motor_speed_percent = std::stoi(BLE_profile->GetCharacteristicVal("app", "motor_speed_percent"));
     ball_spin = BLE_profile->GetCharacteristicVal("app", "ball_spin") == "1" ? true : false;
     std::pair<uint8, uint8> motor_speeds = GetMotorSpeedsByPercent(motor_speed_percent);
@@ -102,7 +100,6 @@ void ROSIE::Loop()
     // Update the speeds of the motors
     motor_manager->Update();
 
-    // BLE
     // Set characteristic values to be updated member values
     BLE_profile->SetCharacteristicVal("app", "motor_1_RPM", std::to_string(motor_1_RPM));
     BLE_profile->SetCharacteristicVal("app", "motor_2_RPM", std::to_string(motor_2_RPM));

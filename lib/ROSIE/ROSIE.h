@@ -18,7 +18,7 @@ class ROSIE
 {
 public:
     ROSIE();
-    ~ROSIE();
+    ~ROSIE() {}
 
     void Loop();
 private:
