@@ -1,13 +1,18 @@
 # ROSIE
-The **Recreational Output System for Interactive Exercise**, or **ROSIE**, is a tennis ball launcher.
+<p align="center">
+  <img src="docs/assets/ROSIE_logo.png" width="200" alt="Project Logo">
+</p>
+
+The **Recreational Output System for Interactive Exercise**, or **ROSIE**, is a tennis ball launcher designed for individuals suffering from rheumatoid arthritis.
 This program is used to control the onboard ESP32 which controls the motors, ball spin, and handles
 the connection to the app (see [ROSIE-Control-Panel](https://github.com/KennyC3200/ROSIE-Control-Panel)).
 
-## Install
-You will first require:
+## Setup
+### Prerequisites
 - [PlatformIO](https://platformio.org/) installed in VS Code
-- ESP32 connected via USB to upload the program
+- ESP32 (or any microcontroller) connected via USB to upload the program
 
+### Install
 The recommended way to install is from source:
 ```
 git clone --recursive https://github.com/KennyC3200/ROSIE 
